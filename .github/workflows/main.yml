@@ -1,23 +1,18 @@
+name: Build Rust package
+
 on: [push]
 
-env:
-  RUSTFLAGS: "-Dwarnings"
-
 jobs:
-  code-checking:
-    runs-on: ubuntu-latest
-    concurrency: 
-      group: ${{ github.ref }}-code-checking
-      cancel-in-progress: true
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rustfmt,clippy
-          
-      - uses: actions/cache@v3
+
+      - name: Set up cargo cache
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
@@ -25,42 +20,14 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-code-checking-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
 
-      - name: run lint
-        run: cargo fmt --check
+      - name: Build package
+        run: cargo build --release
 
-      - name: run check
-        run: cargo check --all-features --tests
-
-      - name: run clippy
-        run: cargo clippy --all-targets --all-features --tests
-
-  testing:
-    runs-on: ubuntu-latest
-    container: rust:1-bullseye
-
-    concurrency: 
-      group: ${{ github.ref }}-testing
-      cancel-in-progress: true
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: actions-rs/toolchain@v1
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          toolchain: stable
-          profile: minimal
-          
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-testing-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: run tests
-        run: cargo test
+          name: mrml-${{ runner.os }}
+          path: target/release/mrml
